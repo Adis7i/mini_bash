@@ -57,7 +57,7 @@ std::vector<std::string> utls::frmt::__split(std::string &inp_str, char sep){
     
 }
 
-std::string utls::frmt::__strip(std::string &inp_str, char sep) {
+std::string utls::frmt::__strip(const std::string &inp_str, char sep){
     int left = inp_str.find_first_not_of(sep);
     int right = inp_str.find_last_not_of(sep);
     if((left == std::string::npos) || (right == std::string::npos)){

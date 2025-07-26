@@ -37,14 +37,14 @@ bool is_posarg_subcom(const std::string& str){
     return std::regex_match(str, pattern);
 }
 
-    void ArgParser::_PrintSOC(){ // print series of commands
+    void utls::prsr::ArgParser::_PrintSOC(){ // print series of commands
         if(parent_parser != nullptr){
             parent_parser->_PrintSOC();
         }
         std::cout << command << " ";
     }
 
-    void ArgParser::_PrintUsage(){
+    void utls::prsr::ArgParser::_PrintUsage(){
         std::cout << "usage: ";
         _PrintSOC();
         for(ArgEntry* entry : unduplicated_arg_data){
@@ -65,9 +65,10 @@ bool is_posarg_subcom(const std::string& str){
                 break;
             }
         }
+        std::cout << std::endl;
     }
     // Runtime Error Handler
-    void ArgParser::_ErrorHandler(ArgErrorCode code, ArgEntry* issued_argument, const std::string& issued_token) {
+    void utls::prsr::ArgParser::_ErrorHandler(ArgErrorCode code, ArgEntry* issued_argument, const std::string& issued_token) {
         _PrintUsage();
         std::cerr << "Error: ";
         switch (code) {
@@ -96,14 +97,14 @@ bool is_posarg_subcom(const std::string& str){
         throw std::runtime_error("Parse fail");
     }
 
-    void ArgParser::_ArgCallback(){
+    void utls::prsr::ArgParser::_ArgCallback(){
         for(ArgEntry* entry : unduplicated_arg_data){
             entry->func();
         }
         func();
     }
 
-    void ArgParser::_CheckAllRequiredArgIsCalled(){
+    void utls::prsr::ArgParser::_CheckAllRequiredArgIsCalled(){
         for(ArgEntry* entry : unduplicated_arg_data){
             if((entry->atr.flag & ArgFlagDiagnostic::REQUIRED_TO_CALLED_MASK) == ArgFlag::IS_REQUIRED){
                 _ErrorHandler(ArgErrorCode::ERROR_MISSING_ARG);
@@ -111,7 +112,7 @@ bool is_posarg_subcom(const std::string& str){
         }
     }
 
-    void ArgParser::_ParseMultiple(std::vector<std::string>& tokens, unsigned int& token_ptr, ArgEntry& entry, std::string& curr_token){
+    void utls::prsr::ArgParser::_ParseMultiple(std::vector<std::string>& tokens, unsigned int& token_ptr, ArgEntry& entry, std::string& curr_token){
         auto dec = (entry.atr.narg != -1) ? [](int& narg){ --narg; }:[](int& narg){};
         int nth_val = 0;
 
@@ -133,7 +134,7 @@ bool is_posarg_subcom(const std::string& str){
         }
     }
 
-    ArgEntry* ArgParser::_GetEntry(const std::string& token) {
+    utls::prsr::ArgEntry* utls::prsr::ArgParser::_GetEntry(const std::string& token) {
         if (arg_lookup.count(token)) {
             return arg_lookup.at(token);
         }
@@ -141,7 +142,7 @@ bool is_posarg_subcom(const std::string& str){
         return nullptr;
     }
     // Actual logic, the params are initialized in parse_args()
-    void ArgParser::_ParseFrom(
+    void utls::prsr::ArgParser::_ParseFrom(
         std::vector<std::string>& tokens,
         unsigned int& token_ptr,
         unsigned int& positional_ptr,
@@ -240,15 +241,17 @@ bool is_posarg_subcom(const std::string& str){
         }
     }
 
-    void ArgParser::_AddPositional(std::string& opt, ArgEntry& entry){
+    void utls::prsr::ArgParser::_AddPositional(std::string& opt, ArgEntry& entry){
         opt = utls::frmt::__strip(opt, ' ');
         if(is_posarg_subcom(opt)){
             switch (entry.atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK)
             {
             case ArgFlag::STORE_ANY :
                 entry.atr.narg = -1;
+                break;
+
             case ArgFlag::STORE_NARG :
-                if(entry.atr.narg != 0){
+                if(entry.atr.narg > 0){
                     break;
                 }
                 
@@ -258,6 +261,7 @@ bool is_posarg_subcom(const std::string& str){
             }
 
             ArgEntry* entry_ptr = new ArgEntry(entry);
+            entry_ptr->meta.opt1 = opt;
             ordered_positionals.push_back(entry_ptr);
             arg_lookup.insert({opt, entry_ptr});
         } else {
@@ -265,7 +269,7 @@ bool is_posarg_subcom(const std::string& str){
         }
     }
 
-    void ArgParser::_FlagVerifyNarg(ArgEntry& entry){
+    void utls::prsr::ArgParser::_FlagVerifyNarg(ArgEntry& entry){
         switch (entry.atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK)
             {
             case ArgFlag::STORE_CONST :
@@ -291,7 +295,7 @@ bool is_posarg_subcom(const std::string& str){
 
     }
 
-    void ArgParser::_AddFlag(std::string& opt, ArgEntry& entry){
+    void utls::prsr::ArgParser::_AddFlag(std::string& opt, ArgEntry& entry){
         size_t comma_pos = opt.find(',');
 
         std::regex short_pattern("^-[a-zA-Z]$");
@@ -304,6 +308,8 @@ bool is_posarg_subcom(const std::string& str){
                 if(std::regex_match(short_flag, short_pattern) && std::regex_match(long_flag, long_pattern)){
                     _FlagVerifyNarg(entry);
                     ArgEntry* entry_ptr = new ArgEntry(entry);
+                    entry_ptr->meta.opt1 = short_flag;
+                    entry_ptr->meta.opt2 = long_flag;
                     unduplicated_arg_data.push_back(entry_ptr);
                     arg_lookup.insert({short_flag, entry_ptr});
                     arg_lookup.insert({long_flag, entry_ptr});
@@ -315,19 +321,22 @@ bool is_posarg_subcom(const std::string& str){
                 throw std::invalid_argument("Empty option '" + opt + "' are not permitted");
             }
         } else {
+            ArgEntry entry {};
             opt = utls::frmt::__strip(opt, ' ');
             switch (opt.find_first_not_of('-'))
             {
             case 1: // short flag
                 if(!std::regex_match(opt, short_pattern)){
                     throw std::invalid_argument("Invalid short flag pattern");
-                } 
+                }
+                entry.meta.opt1 = opt;
                 break;
             
             case 2 : // long flag
                 if(!std::regex_match(opt, long_pattern)){
                     throw std::invalid_argument("Invalid long flag pattern");
                 }
+                entry.meta.opt2 = opt;
                 break;
             
             default:
@@ -354,7 +363,7 @@ bool is_posarg_subcom(const std::string& str){
      * 
      * - double flag = "-v, --verbose", "-p, --port" (using comma means you're commited to a double flag input)
      */
-    void ArgParser::add_argument(
+    void utls::prsr::ArgParser::add_argument(
         std::string opt,
         uint8_t flag,
         uint8_t narg,
@@ -385,15 +394,15 @@ bool is_posarg_subcom(const std::string& str){
         }
     }
 
-    const std::unordered_map<std::string, ArgEntry*>* ArgParser::get_arg_lookup() const noexcept {
+    const std::unordered_map<std::string, utls::prsr::ArgEntry*>* utls::prsr::ArgParser::get_arg_lookup() const noexcept {
         return &arg_lookup;
     }
 
-    const std::unordered_map<std::string, SubComEntry>* ArgParser::get_subcom_lookup() const noexcept {
+    const std::unordered_map<std::string, utls::prsr::SubComEntry>* utls::prsr::ArgParser::get_subcom_lookup() const noexcept {
         return &subcom_lookup;
     }
 
-    ArgParser* ArgParser::add_subcommand(std::string cmnd, std::string help, std::function<void()> fn){
+    utls::prsr::ArgParser* utls::prsr::ArgParser::add_subcommand(std::string cmnd, std::string help, std::function<void()> fn){
         if(is_posarg_subcom(cmnd)){
             auto res = subcom_lookup.emplace(cmnd, SubComEntry(cmnd, fn, this, help));
             if(res.second){
@@ -406,7 +415,7 @@ bool is_posarg_subcom(const std::string& str){
         }
     }
 
-    void ArgParser::parse_main(std::vector<std::string> tokens){ 
+    void utls::prsr::ArgParser::parse_main(std::vector<std::string> tokens){ 
         unsigned int token_ptr = 0;
         unsigned int positional_ptr = 0;
         ArgEntry* entry_buff;
@@ -415,12 +424,12 @@ bool is_posarg_subcom(const std::string& str){
         
     }
 
+// utls::prsr::ArgParser
 
-/*
 int main(){
-    ArgParser parser;
+    utls::prsr::ArgParser parser;
     bool a;
-    parser.add_argument("-v, --verbose", ArgFlag::FLAG | ArgFlag::STORE_CONST | ArgFlag::IS_REQUIRED, 0, "", "", [](){}, true);
+    parser.add_argument("-v, --verbose", utls::prsr::ArgFlag::FLAG | utls::prsr::ArgFlag::STORE_CONST | utls::prsr::ArgFlag::IS_REQUIRED, 0, "", "", [](){}, true);
     parser.parse_main({"-abc"});
     auto p = parser.get_arg_lookup();
     std::cout << "Parser test : (Store const => true)\n";
@@ -430,7 +439,6 @@ int main(){
     std::cout << "Value is : " << a << std::endl;
     return 0;
 }
-*/
 
 
 
