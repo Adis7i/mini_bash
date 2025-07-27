@@ -56,8 +56,7 @@ namespace utls{
     };
 
     struct ArgMeta {
-        std::string opt1;
-        std::string opt2;
+        std::string name; // This is for print usage function, so it doesn't need to do lot of if's
         std::string metavar;
         std::string help;
     };
@@ -131,6 +130,18 @@ namespace utls{
         void _AddFlag(std::string& opt, ArgEntry& entry);
 
     public:
+        /**
+         * @brief Add positional or flag into the parser
+         * 
+         * @note 
+         * Enter the appropriate format for argument type as following :
+         * 
+         * - positionals = "name"
+         * 
+         * - single flag = "-v" or "--verbose"
+         * 
+         * - double flag = "-v, --verbose", "-p, --port" (using comma means you're commited to a double flag input)
+         */
         void add_argument(
             std::string opt,
             uint8_t flag,

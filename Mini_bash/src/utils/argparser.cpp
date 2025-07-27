@@ -48,22 +48,7 @@ bool is_posarg_subcom(const std::string& str){
         std::cout << "usage: ";
         _PrintSOC();
         for(ArgEntry* entry : unduplicated_arg_data){
-            switch (entry->atr.flag & ArgFlagDiagnostic::ARGTYPE_MASK)
-            {
-            case ArgFlag::FLAG :
-                std::cout << "[";
-                if(!entry->meta.opt1.empty()){
-                    std::cout << entry->meta.opt1 << ((!entry->meta.opt2.empty()) ? (" | " + entry->meta.opt2):"");
-                } else {
-                    std::cout << entry->meta.opt2;
-                }
-                std::cout << "] ";
-                break;
-            case ArgFlag::POSITIONAL :
-                std::cout << "[" << entry->meta.opt1 << "] ";
-            default:
-                break;
-            }
+            std::cout << "[" << entry->meta.name << "] ";
         }
         std::cout << std::endl;
     }
@@ -73,16 +58,16 @@ bool is_posarg_subcom(const std::string& str){
         std::cerr << "Error: ";
         switch (code) {
             case ArgErrorCode::ERROR_MISSING_ARG :
-                std::cout << "The following argument are missing : ";
+                std::cout << "The following argument are missing : \n";
                 for(ArgEntry* entry : unduplicated_arg_data){
                     if((entry->atr.flag & 3) == ArgFlag::IS_REQUIRED){
-                        std::cout << ((!entry->meta.opt1.empty()) ? entry->meta.opt1:entry->meta.opt2) << " ";
+                        std::cout << "[" << entry->meta.name << "]";
                     }
                 }
                 break;
                 
             case ArgErrorCode::ERROR_MISSING_NARG :
-                std::cout << ((!issued_argument->meta.opt1.empty()) ? issued_argument->meta.opt1:issued_argument->meta.opt2) << " Required argument : " << issued_argument->atr.narg;
+                std::cout << "'" << issued_argument->meta.name << "' Requires " << issued_argument->atr.narg << " arguments";
                 break;
             
             case ArgErrorCode::ERROR_UNKNOWN_ARG :
@@ -90,7 +75,7 @@ bool is_posarg_subcom(const std::string& str){
                 break;
             
             case ArgErrorCode::ERROR_INVALID_INPUT_TO_ATTRIBUTE :
-                std::cout << "Invalid attribute type from " << ((!issued_argument->meta.opt1.empty()) ? issued_argument->meta.opt1:issued_argument->meta.opt2) << " to it's input (check your input)";
+                std::cout << "Invalid attribute type for '" << issued_argument->meta.name << "' to it's input (check your input)";
                 break;                
         }
         std::cout << std::endl;
@@ -117,6 +102,7 @@ bool is_posarg_subcom(const std::string& str){
         int nth_val = 0;
 
         while((token_ptr < tokens.size()) && (entry.atr.narg != 0)){
+            ++token_ptr;
             curr_token = tokens[token_ptr];
 
             if((curr_token[0] == '-') || (subcom_lookup.count(curr_token) != 0)){
@@ -128,8 +114,6 @@ bool is_posarg_subcom(const std::string& str){
             } else {
                 entry.values.push_back(curr_token);
             }
-
-            ++token_ptr;
             ++nth_val;
         }
     }
@@ -139,10 +123,10 @@ bool is_posarg_subcom(const std::string& str){
             return arg_lookup.at(token);
         }
         _ErrorHandler(ArgErrorCode::ERROR_UNKNOWN_ARG, nullptr, token);
-        return nullptr;
     }
-    // Actual logic, the params are initialized in parse_args()
+
     void utls::prsr::ArgParser::_ParseFrom(
+        // Actual logic, the params are initialized in parse_args()
         std::vector<std::string>& tokens,
         unsigned int& token_ptr,
         unsigned int& positional_ptr,
@@ -259,9 +243,9 @@ bool is_posarg_subcom(const std::string& str){
                 throw std::invalid_argument("Invalid take type flag for " + opt);
                 break;
             }
-
+            entry.meta.name = opt;
             ArgEntry* entry_ptr = new ArgEntry(entry);
-            entry_ptr->meta.opt1 = opt;
+            entry_ptr->meta.name = opt;
             ordered_positionals.push_back(entry_ptr);
             arg_lookup.insert({opt, entry_ptr});
         } else {
@@ -307,13 +291,11 @@ bool is_posarg_subcom(const std::string& str){
             if(!short_flag.empty() && !long_flag.empty()){
                 if(std::regex_match(short_flag, short_pattern) && std::regex_match(long_flag, long_pattern)){
                     _FlagVerifyNarg(entry);
-                    ArgEntry* entry_ptr = new ArgEntry(entry);
-                    entry_ptr->meta.opt1 = short_flag;
-                    entry_ptr->meta.opt2 = long_flag;
+                    entry.meta.name = short_flag + " | " + long_flag;
+                    ArgEntry* entry_ptr = new ArgEntry(entry); // more than one instance are using the same entry
                     unduplicated_arg_data.push_back(entry_ptr);
                     arg_lookup.insert({short_flag, entry_ptr});
                     arg_lookup.insert({long_flag, entry_ptr});
-
                 } else {
                     throw std::invalid_argument(opt + " Does not match long and short flag pattern");
                 }
@@ -328,21 +310,20 @@ bool is_posarg_subcom(const std::string& str){
             case 1: // short flag
                 if(!std::regex_match(opt, short_pattern)){
                     throw std::invalid_argument("Invalid short flag pattern");
-                }
-                entry.meta.opt1 = opt;
+                }                
                 break;
             
             case 2 : // long flag
                 if(!std::regex_match(opt, long_pattern)){
                     throw std::invalid_argument("Invalid long flag pattern");
-                }
-                entry.meta.opt2 = opt;
+                }                
                 break;
             
             default:
                 throw std::invalid_argument("Unknown flag format");
                 break;
             }
+            entry.meta.name = opt;
             _FlagVerifyNarg(entry);
             ArgEntry* entry_ptr = new ArgEntry(entry);
             unduplicated_arg_data.push_back(entry_ptr);
@@ -351,18 +332,6 @@ bool is_posarg_subcom(const std::string& str){
 
     }
 
-    /**
-     * @brief Add positional or flag into the parser
-     * 
-     * @note 
-     * Enter the appropriate format for argument type as following :
-     * 
-     * - positionals = "name"
-     * 
-     * - single flag = "-v" or "--verbose"
-     * 
-     * - double flag = "-v, --verbose", "-p, --port" (using comma means you're commited to a double flag input)
-     */
     void utls::prsr::ArgParser::add_argument(
         std::string opt,
         uint8_t flag,
@@ -406,7 +375,7 @@ bool is_posarg_subcom(const std::string& str){
         if(is_posarg_subcom(cmnd)){
             auto res = subcom_lookup.emplace(cmnd, SubComEntry(cmnd, fn, this, help));
             if(res.second){
-                return &res.first->second.instance; // how do I return SubComEntry.ArgParser_instance ?
+                return &res.first->second.instance;
             } else {
                 throw std::runtime_error("Failed inserting sub-command entry");
             }
@@ -424,21 +393,8 @@ bool is_posarg_subcom(const std::string& str){
         
     }
 
-// utls::prsr::ArgParser
 
-int main(){
-    utls::prsr::ArgParser parser;
-    bool a;
-    parser.add_argument("-v, --verbose", utls::prsr::ArgFlag::FLAG | utls::prsr::ArgFlag::STORE_CONST | utls::prsr::ArgFlag::IS_REQUIRED, 0, "", "", [](){}, true);
-    parser.parse_main({"-abc"});
-    auto p = parser.get_arg_lookup();
-    std::cout << "Parser test : (Store const => true)\n";
-    std::cout << "long flag existence : " << std::boolalpha << p->count("--verbose") << "\n";
-    std::cout << "short flag existence : " << std::boolalpha << p->count("-v") << "\n";
-    a = std::any_cast<bool>(p->at("-v")->constant_val);
-    std::cout << "Value is : " << a << std::endl;
-    return 0;
-}
+
 
 
 
