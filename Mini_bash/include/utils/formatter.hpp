@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include <iostream>
+
 namespace utls{
     namespace frmt{
 
@@ -36,6 +38,16 @@ namespace utls{
 
         // Convert string to decimal (double)
         double str_dob(std::string val);
+
+        // Show what is in the array
+        template<typename T>
+        void __show(std::vector<T> arr) {
+            std::cout << "[";
+            for(T elmnt : arr){
+                std::cout << elmnt << ", ";
+            }
+            std::cout << "]\n";
+        }
 
         // Check if an element is in vector
         template <typename T>
