@@ -15,6 +15,21 @@
 #include <any>
 #include <functional>
 #include <stdint.h>
+/**
+ * 0 0 0 0 0 (read from the right)
+ * 1100011
+ * 1st bit = is_called
+ * 2nd bit = required
+ * 3-4rd bit = take mode
+ *      |-> 00 = store constant (doesn't make it do anything technically :P)
+ *      |-> 01 = store certain nargs (number of arguments)
+ *      |-> 10 = store any nargs 
+ *    
+ * 5th bit = Argument type
+ *      |-> 1 = Positionals
+ *      |-> 0 = Flag
+ * 
+ */
 
 namespace utls{
     namespace prsr {
@@ -22,55 +37,55 @@ namespace utls{
      * @brief Enum for flag attributes
      */
     enum ArgFlag {
-        STORE_CONST = 0,
-        STORE_NARG = 1 << 2,
-        STORE_ANY = 1 << 3,
-        IS_REQUIRED = 1 << 1,
-        FLAG = 1 << 4,
-        POSITIONAL = 0,
+        STORE_CONST = 0x0,
+        STORE_NARG = 0x4,
+        STORE_ANY = 0x8,
+        IS_REQUIRED = 0x2,
+        FLAG = 0x10,
+        POSITIONAL = 0x0,
     };
 
     /**
      * @brief Enum to filter out desired flag
      */
-    enum ArgFlagDiagnostic {
-        TAKETYPE_MASK = 3 << 2,
-        ARGTYPE_MASK = 1 << 4,
-        IS_CALLED = 1,
-        REQUIRED_TO_CALLED_MASK = 3
+    enum Diagnostic {
+        TAKETYPE_MASK = 0xC,
+        ARGTYPE_MASK = 0x10,
+        IS_CALLED = 0x1,
+        REQUIRED_TO_CALLED_MASK = 0x3
     };
 
     /**
      * @brief Error code
      */
-    enum ArgErrorCode {
+    enum Err_code {
         ERROR_MISSING_ARG,
         ERROR_UNKNOWN_ARG,
         ERROR_MISSING_NARG,
         ERROR_INVALID_INPUT_TO_ATTRIBUTE
     };
 
-    struct AgrAtr {
+    struct Attr {
         uint8_t flag = 0;
         uint8_t narg = 0; // 255+ more arguments ?, you must be joking !
     };
 
-    struct ArgMeta {
+    struct Meta {
         std::string name; // This is for print usage function, so it doesn't need to do lot of if's
         std::string metavar;
         std::string help;
     };
 
     struct ArgEntry {
-        ArgMeta meta;
-        AgrAtr atr;
+        Meta meta;
+        Attr atr;
         std::vector<std::string> values;
         std::any constant_val;
         std::any default_val;
         std::function<void()> func;
     };
 
-    struct NoneType {}; // dummy type for constant_val type checking
+    struct None {}; // dummy type for constant_val type checking
 
     class ArgParser {
     private:
@@ -97,7 +112,7 @@ namespace utls{
         /**
          * @brief Throws error upon parsing
          */
-        void _ErrorHandler(ArgErrorCode code, ArgEntry* issued_argument = nullptr, const std::string& issued_token = "");
+        void _ErrorHandler(Err_code code, ArgEntry* issued_argument = nullptr, const std::string& issued_token = "");
 
         /**
          * @brief Call function on flags, positionals, and this->func
@@ -113,11 +128,6 @@ namespace utls{
         void _ParseMultiple(std::vector<std::string>& tokens, unsigned int& token_ptr, ArgEntry& entry, std::string& curr_token);
 
         /**
-         * @brief Get flag or posarg entry pointer
-         */
-        ArgEntry* _GetEntry(const std::string& token);
-
-        /**
          * @brief Main logic of the parsing
          * 
          * Using reference to avoid stack overflow from a function state. if subcommand is too much
@@ -130,6 +140,11 @@ namespace utls{
         void _AddFlag(std::string& opt, ArgEntry& entry);
 
     public:
+        /**
+         * @brief Get flag or posarg entry pointer
+         */
+        ArgEntry* _GetEntry(const std::string& token);
+
         /**
          * @brief Add positional or flag into the parser
          * 
@@ -149,8 +164,8 @@ namespace utls{
             std::string metavar = "",
             std::string desc = "",
             std::function<void()> fn = [](){},
-            std::any constant = NoneType {},
-            std::any def = NoneType {}
+            std::any constant = None {},
+            std::any def = None {}
         );
 
         const std::unordered_map<std::string, ArgEntry*>* get_arg_lookup() const noexcept;

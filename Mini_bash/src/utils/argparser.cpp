@@ -1,336 +1,342 @@
 #include <vector>
 #include <boost/regex.hpp>
 #include <regex>
-#include "../../include/utils/argparser.hpp" // utls::frmt namespace
+#include <bitset>
+#include "../../include/utils/argparser(descriptive).hpp" // utls::frmt namespace
 #include <iostream>
 #include "../../include/utils/formatter.hpp"
 
-/**
- * 0 0 0 0 0 (read from the right)
- * 
- * 1st bit = is_called
- * 2nd bit = required
- * 3-4rd bit = take mode
- *      |-> 00 = store constant (doesn't make it do anything technically :P)
- *      |-> 01 = store certain nargs (number of arguments)
- *      |-> 10 = store any nargs 
- *    
- * 5th bit = Argument type
- *      |-> 1 = Positionals
- *      |-> 0 = Flag
- * 
- */
-
-// User testimonies (mostly not used in the complex implementation)
-bool is_long_flag(const std::string& str){
-    std::regex pattern("^-[a-zA-Z]+[a-zA-Z0-9_-]*$");
-    return std::regex_match(str, pattern);
-}
-
-bool is_short_flag(const std::string& str){
-    std::regex pattern("^-[a-zA-Z]$");
-    return std::regex_match(str, pattern);
-}
 
 bool is_posarg_subcom(const std::string& str){
     std::regex pattern("^[a-zA-Z_]+$");
     return std::regex_match(str, pattern);
 }
 
-    void utls::prsr::ArgParser::_PrintSOC(){ // print series of commands
-        if(parent_parser != nullptr){
-            parent_parser->_PrintSOC();
-        }
-        std::cout << command << " ";
+void utls::prsr::ArgParser::_PrintSOC(){ // print series of commands
+    if(parent_parser != nullptr){
+        parent_parser->_PrintSOC();
     }
-
-    void utls::prsr::ArgParser::_PrintUsage(){
-        std::cout << "usage: ";
-        _PrintSOC();
-        for(ArgEntry* entry : unduplicated_arg_data){
-            std::cout << "[" << entry->meta.name << "] ";
-        }
-        std::cout << std::endl;
+    
+}
+// _GetEntry
+void utls::prsr::ArgParser::_PrintUsage(){
+    
+    _PrintSOC();
+    for(ArgEntry* entry : unduplicated_arg_data){
+        
     }
-    // Runtime Error Handler
-    void utls::prsr::ArgParser::_ErrorHandler(ArgErrorCode code, ArgEntry* issued_argument, const std::string& issued_token) {
-        _PrintUsage();
-        std::cerr << "Error: ";
-        switch (code) {
-            case ArgErrorCode::ERROR_MISSING_ARG :
-                std::cout << "The following argument are missing : \n";
-                for(ArgEntry* entry : unduplicated_arg_data){
-                    if((entry->atr.flag & 3) == ArgFlag::IS_REQUIRED){
-                        std::cout << "[" << entry->meta.name << "]";
-                    }
+    
+}
+// Err_code
+// Runtime Error Handler
+void utls::prsr::ArgParser::_ErrorHandler(Err_code code, ArgEntry* issued_argument, const std::string& issued_token) {
+    _PrintUsage();
+    std::cerr << "Error: ";
+    switch (code) {
+        int a;
+        case Err_code::ERROR_MISSING_ARG :
+            std::cerr << "The following argument are missing : \n";
+            for(ArgEntry* entry : unduplicated_arg_data){
+                if((entry->atr.flag & 3) == ArgFlag::IS_REQUIRED){
+                    std::cerr << "[" << entry->meta.name << "]";
                 }
-                break;
-                
-            case ArgErrorCode::ERROR_MISSING_NARG :
-                std::cout << "'" << issued_argument->meta.name << "' Requires " << issued_argument->atr.narg << " arguments";
-                break;
+            }
+            break;
             
-            case ArgErrorCode::ERROR_UNKNOWN_ARG :
-                std::cout << "Unknown argument : " << issued_token;
-                break;
-            
-            case ArgErrorCode::ERROR_INVALID_INPUT_TO_ATTRIBUTE :
-                std::cout << "Invalid attribute type for '" << issued_argument->meta.name << "' to it's input (check your input)";
-                break;                
-        }
-        std::cout << std::endl;
-        throw std::runtime_error("Parse fail");
+        case Err_code::ERROR_MISSING_NARG :
+            a = issued_argument->atr.narg;
+            std::cerr << "'" << issued_argument->meta.name << "' Requires " << a << " arguments";
+            break;
+        
+        case Err_code::ERROR_UNKNOWN_ARG :
+            std::cerr << "Unknown argument : " << issued_token;
+            break;
+        
+        case Err_code::ERROR_INVALID_INPUT_TO_ATTRIBUTE :
+            std::cerr << "Invalid attribute type for '" << issued_argument->meta.name << "' to it's input (check your input)";
+            break;                
     }
+    std::cerr << std::endl;
+    throw "Parse fail"; // Replaced for mini_bash feedback
+}
 
-    void utls::prsr::ArgParser::_ArgCallback(){
-        for(ArgEntry* entry : unduplicated_arg_data){
-            entry->func();
-        }
-        func();
+void utls::prsr::ArgParser::_ArgCallback(){
+    for(ArgEntry* entry : unduplicated_arg_data){
+        entry->func();
     }
+    func();
+}
 
     void utls::prsr::ArgParser::_CheckAllRequiredArgIsCalled(){
         for(ArgEntry* entry : unduplicated_arg_data){
-            if((entry->atr.flag & ArgFlagDiagnostic::REQUIRED_TO_CALLED_MASK) == ArgFlag::IS_REQUIRED){
-                _ErrorHandler(ArgErrorCode::ERROR_MISSING_ARG);
+            if((entry->atr.flag & Diagnostic::REQUIRED_TO_CALLED_MASK) == ArgFlag::IS_REQUIRED){
+                _ErrorHandler(Err_code::ERROR_MISSING_ARG);
             }
         }
     }
 
-    void utls::prsr::ArgParser::_ParseMultiple(std::vector<std::string>& tokens, unsigned int& token_ptr, ArgEntry& entry, std::string& curr_token){
-        auto dec = (entry.atr.narg != -1) ? [](int& narg){ --narg; }:[](int& narg){};
-        int nth_val = 0;
+void utls::prsr::ArgParser::_ParseMultiple(std::vector<std::string>& tokens, unsigned int& token_ptr, ArgEntry& entry, std::string& curr_token){
+    auto dec = (entry.atr.narg != -1) ? [](uint8_t& narg){ --narg; }:[](uint8_t& narg){};
+    int nth_val = 0;
+    
 
-        while((token_ptr < tokens.size()) && (entry.atr.narg != 0)){
+    while((token_ptr < tokens.size()) && (entry.atr.narg != 0)){
+        curr_token = tokens[token_ptr];
+
+        if((curr_token[0] == '-') || (subcom_lookup.count(curr_token) != 0)){
+            
+            return;
+        }
+        if(nth_val < entry.values.size()){
+            entry.values[nth_val] = curr_token;
+        } else {
+            entry.values.push_back(curr_token);
+        }
+        
+        utls::frmt::__show<std::string>(entry.values);
+        ++nth_val;
+        ++token_ptr;
+        dec(entry.atr.narg);
+    }
+    
+}
+
+utls::prsr::ArgEntry* utls::prsr::ArgParser::_GetEntry(const std::string& token) {
+    if (arg_lookup.count(token)) {
+        return arg_lookup.at(token);
+    }
+    _ErrorHandler(Err_code::ERROR_UNKNOWN_ARG, nullptr, token);
+    return nullptr;
+}
+
+void utls::prsr::ArgParser::_ParseFrom(
+    // Actual logic, the params are initialized in parse_args()
+    std::vector<std::string>& tokens,
+    unsigned int& token_ptr,
+    unsigned int& positional_ptr,
+    std::string& curr_token,
+    ArgEntry* entry_buff)
+{
+    while(token_ptr < tokens.size()){
+        curr_token = tokens[token_ptr];
+        
+        if(curr_token[0] == '-'){ // curr_token is a possible flag
             ++token_ptr;
-            curr_token = tokens[token_ptr];
-
-            if((curr_token[0] == '-') || (subcom_lookup.count(curr_token) != 0)){
-                return;
-            }
-
-            if(nth_val < entry.values.size()){
-                entry.values[nth_val] = curr_token;
-            } else {
-                entry.values.push_back(curr_token);
-            }
-            ++nth_val;
-        }
-    }
-
-    utls::prsr::ArgEntry* utls::prsr::ArgParser::_GetEntry(const std::string& token) {
-        if (arg_lookup.count(token)) {
-            return arg_lookup.at(token);
-        }
-        _ErrorHandler(ArgErrorCode::ERROR_UNKNOWN_ARG, nullptr, token);
-    }
-
-    void utls::prsr::ArgParser::_ParseFrom(
-        // Actual logic, the params are initialized in parse_args()
-        std::vector<std::string>& tokens,
-        unsigned int& token_ptr,
-        unsigned int& positional_ptr,
-        std::string& curr_token,
-        ArgEntry* entry_buff)
-    {
-        while(token_ptr < tokens.size()){
-            curr_token = tokens[token_ptr];
             
-            if(curr_token[0] == '-'){ // curr_token is a possible flag
+            size_t equal_pos = curr_token.find('=');
+            if(equal_pos != std::string::npos){
                 
-                size_t equal_pos = curr_token.find('=');
-                if(equal_pos != std::string::npos){
-                    entry_buff = _GetEntry(curr_token.substr(0, equal_pos));
+                entry_buff = _GetEntry(curr_token.substr(0, equal_pos));
+                
+                if((entry_buff->atr.flag & Diagnostic::TAKETYPE_MASK) == ArgFlag::STORE_CONST){
                     
-                    if((entry_buff->atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK) == ArgFlag::STORE_CONST){
-                        _ErrorHandler(ArgErrorCode::ERROR_INVALID_INPUT_TO_ATTRIBUTE, entry_buff);
-                    }
+                    _ErrorHandler(Err_code::ERROR_INVALID_INPUT_TO_ATTRIBUTE, entry_buff);
+                }
+            
+                if(entry_buff->values.empty()){
+                    entry_buff->values.push_back(curr_token.substr(equal_pos + 1));
+                } else {
+                    entry_buff->values[0] = curr_token.substr(equal_pos + 1);
+                }
                 
-                    if(entry_buff->values.empty()){
-                        entry_buff->values.push_back(curr_token.substr(equal_pos + 1));
+            } else {
+                
+                entry_buff = _GetEntry(curr_token);
+                int old_narg = entry_buff->atr.narg;
+                switch (entry_buff->atr.flag & Diagnostic::TAKETYPE_MASK)
+                {
+                case ArgFlag::STORE_CONST :
+                    
+                    entry_buff->atr.flag = entry_buff->atr.flag | Diagnostic::IS_CALLED;
+                    break;
+
+                case ArgFlag::STORE_NARG :
+                    
+                    _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
+                    if(entry_buff->atr.narg == 0){
+                        entry_buff->atr.flag = entry_buff->atr.flag | Diagnostic::IS_CALLED;
+                        entry_buff->atr.narg = old_narg; // Restore narg in case of --help
                     } else {
-                        entry_buff->values[0] = curr_token.substr(equal_pos + 1);
-                    }
-                    ++token_ptr;
-
-                } else {
-                    entry_buff = _GetEntry(curr_token);
-                    int old_narg = entry_buff->atr.narg;
-                    
-                    switch (entry_buff->atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK)
-                    {
-                    case ArgFlag::STORE_CONST :
-                        entry_buff->atr.flag = entry_buff->atr.flag | ArgFlagDiagnostic::IS_CALLED;
-                        ++token_ptr;
-                        break;
-
-                    case ArgFlag::STORE_NARG :
-                        _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
-                        if(entry_buff->atr.narg == 0){
-                            entry_buff->atr.flag = entry_buff->atr.flag | ArgFlagDiagnostic::IS_CALLED;
-                            entry_buff->atr.narg = old_narg; // Restore narg in case of --help
-                        } else {
-                            _ErrorHandler(ArgErrorCode::ERROR_MISSING_NARG, entry_buff);
-                        }
-                    
-                    case ArgFlag::STORE_ANY :
-                        _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
-                        entry_buff->atr.flag = entry_buff->atr.flag | ArgFlagDiagnostic::IS_CALLED;
-                    default:
-                        break;
+                        _ErrorHandler(Err_code::ERROR_MISSING_NARG, entry_buff);
                     }
 
-
-                }
-
-            } else if (subcom_lookup.count(curr_token) != 0){
-                _CheckAllRequiredArgIsCalled();
-                ++token_ptr;
+                    break;
                 
-                subcom_lookup.at(curr_token).instance._ParseFrom(tokens, token_ptr, positional_ptr, curr_token, entry_buff);
-                _ArgCallback();
-                return;
-
-            } else {
-                if(positional_ptr < ordered_positionals.size()){
-                    entry_buff = ordered_positionals[positional_ptr];
-                    int old_narg = entry_buff->atr.narg;
-                    switch (entry_buff->atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK)
-                    {
-                    case STORE_NARG :
-                        _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
-                        if(entry_buff->atr.narg == 0){
-                            ++positional_ptr;
-                            entry_buff->atr.flag = entry_buff->atr.flag | ArgFlagDiagnostic::IS_CALLED;
-                            entry_buff->atr.narg = old_narg;
-                        }
-                        // Don't throw exception if interrupted (ignore interruptions)
+                case ArgFlag::STORE_ANY :
                     
-                    case STORE_ANY :
-                        _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
-                        entry_buff->atr.flag = entry_buff->atr.flag | ArgFlagDiagnostic::IS_CALLED;
-                        // We don't know what condition "any narg" positional argument supposed to finish
-                        // So we are NOT incrementing positional_ptr
-                    default:
-                        break;
-                    }
-                } else {
-                    _ErrorHandler(ArgErrorCode::ERROR_UNKNOWN_ARG, nullptr, curr_token);
-                }
-            }
+                    _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
+                    entry_buff->atr.flag = entry_buff->atr.flag | Diagnostic::IS_CALLED;
+                    break;
 
-            // ++token_ptr are not used here, because it was already handled by the block code above
-            
-            
-        }
-    }
-
-    void utls::prsr::ArgParser::_AddPositional(std::string& opt, ArgEntry& entry){
-        opt = utls::frmt::__strip(opt, ' ');
-        if(is_posarg_subcom(opt)){
-            switch (entry.atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK)
-            {
-            case ArgFlag::STORE_ANY :
-                entry.atr.narg = -1;
-                break;
-
-            case ArgFlag::STORE_NARG :
-                if(entry.atr.narg > 0){
+                default:
                     break;
                 }
                 
-            default:
-                throw std::invalid_argument("Invalid take type flag for " + opt);
-                break;
-            }
-            entry.meta.name = opt;
-            ArgEntry* entry_ptr = new ArgEntry(entry);
-            entry_ptr->meta.name = opt;
-            ordered_positionals.push_back(entry_ptr);
-            arg_lookup.insert({opt, entry_ptr});
-        } else {
-            throw std::invalid_argument(opt + " does not match a positional argument pattern");
-        }
-    }
 
-    void utls::prsr::ArgParser::_FlagVerifyNarg(ArgEntry& entry){
-        switch (entry.atr.flag & ArgFlagDiagnostic::TAKETYPE_MASK)
-            {
-            case ArgFlag::STORE_CONST :
-                // We don't need to care about the nargs. but we do need to care abt constant type
-                try{
-                    std::any_cast<NoneType>(entry.constant_val);
-                    throw std::invalid_argument("Constant type shouldn't be none");
-                } catch (std::bad_any_cast& msg){}
-                break;
+            }
+
+        } else if (subcom_lookup.count(curr_token) != 0){
+            _CheckAllRequiredArgIsCalled();
+            ++token_ptr;
             
-            case ArgFlag::STORE_NARG :
-                if(entry.atr.narg == 0){
-                    throw std::invalid_argument("STORE_NARG flag shouldn't be paired with 0 nargs");
-                }
-                break;
-            case ArgFlag::STORE_ANY :
-                entry.atr.narg = -1;
-                break;
-            default:
-                throw std::invalid_argument("Invalid take type flag");
-                break;
-            }
+            subcom_lookup.at(curr_token).instance._ParseFrom(tokens, token_ptr, positional_ptr, curr_token, entry_buff);
+            _ArgCallback();
+            return;
 
-    }
+        } else {
+            if(positional_ptr < ordered_positionals.size()){
+                
+                entry_buff = ordered_positionals[positional_ptr];
+                int old_narg = entry_buff->atr.narg;
+                switch (entry_buff->atr.flag & Diagnostic::TAKETYPE_MASK)
+                {
+                case STORE_NARG :
+                    
+                    _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
+                    if(entry_buff->atr.narg == 0){
+                        ++positional_ptr;
+                        entry_buff->atr.flag = entry_buff->atr.flag | Diagnostic::IS_CALLED;
+                        entry_buff->atr.narg = old_narg;
+                    }
+                    break;
+                    // Don't throw exception if interrupted (ignore interruptions)
+                
+                case STORE_ANY :
+                    
+                    _ParseMultiple(tokens, token_ptr, *entry_buff, curr_token);
+                    entry_buff->atr.flag = entry_buff->atr.flag | Diagnostic::IS_CALLED;
+                    break;
+                    // We don't know what condition "any narg" positional argument supposed to finish
+                    // So we are NOT incrementing positional_ptr
 
-    void utls::prsr::ArgParser::_AddFlag(std::string& opt, ArgEntry& entry){
-        size_t comma_pos = opt.find(',');
-
-        std::regex short_pattern("^-[a-zA-Z]$");
-        std::regex long_pattern("^--[a-zA-Z]+[a-zA-Z0-9_-]*$");
-        if(comma_pos != std::string::npos){
-            std::string short_flag = utls::frmt::__strip(opt.substr(0, comma_pos), ' ');
-            std::string long_flag = utls::frmt::__strip(opt.substr(comma_pos + 1), ' ');
-
-            if(!short_flag.empty() && !long_flag.empty()){
-                if(std::regex_match(short_flag, short_pattern) && std::regex_match(long_flag, long_pattern)){
-                    _FlagVerifyNarg(entry);
-                    entry.meta.name = short_flag + " | " + long_flag;
-                    ArgEntry* entry_ptr = new ArgEntry(entry); // more than one instance are using the same entry
-                    unduplicated_arg_data.push_back(entry_ptr);
-                    arg_lookup.insert({short_flag, entry_ptr});
-                    arg_lookup.insert({long_flag, entry_ptr});
-                } else {
-                    throw std::invalid_argument(opt + " Does not match long and short flag pattern");
+                default:
+                    break;
                 }
             } else {
-                throw std::invalid_argument("Empty option '" + opt + "' are not permitted");
+                _ErrorHandler(Err_code::ERROR_UNKNOWN_ARG, nullptr, curr_token);
             }
-        } else {
-            ArgEntry entry {};
-            opt = utls::frmt::__strip(opt, ' ');
-            switch (opt.find_first_not_of('-'))
-            {
-            case 1: // short flag
-                if(!std::regex_match(opt, short_pattern)){
-                    throw std::invalid_argument("Invalid short flag pattern");
-                }                
-                break;
-            
-            case 2 : // long flag
-                if(!std::regex_match(opt, long_pattern)){
-                    throw std::invalid_argument("Invalid long flag pattern");
-                }                
-                break;
-            
-            default:
-                throw std::invalid_argument("Unknown flag format");
-                break;
-            }
-            entry.meta.name = opt;
-            _FlagVerifyNarg(entry);
-            ArgEntry* entry_ptr = new ArgEntry(entry);
-            unduplicated_arg_data.push_back(entry_ptr);
-            arg_lookup.insert({opt, entry_ptr});
         }
 
+        // ++token_ptr are not used here, because it was already handled by the block code above
+        
+        
     }
+}
+
+void utls::prsr::ArgParser::_AddPositional(std::string& opt, ArgEntry& entry){
+    opt = utls::frmt::__strip(opt, ' ');
+    if(is_posarg_subcom(opt)){
+        switch (entry.atr.flag & Diagnostic::TAKETYPE_MASK)
+        {
+        case ArgFlag::STORE_ANY :
+            entry.atr.narg = -1;
+            break;
+
+        case ArgFlag::STORE_NARG :
+            if(entry.atr.narg > 0){
+                break;
+            }
+            
+        default: //stdexcept if "initialization process" process failed
+            throw std::invalid_argument("Invalid take type flag for " + opt);
+            break;
+        }
+        entry.meta.name = opt;
+        ArgEntry* entry_ptr = new ArgEntry(entry);
+        entry_ptr->meta.name = opt;
+        ordered_positionals.push_back(entry_ptr);
+        arg_lookup.insert({opt, entry_ptr});
+    } else {
+        throw std::invalid_argument(opt + " does not match a positional argument pattern");
+    }
+}
+
+void utls::prsr::ArgParser::_FlagVerifyNarg(ArgEntry& entry){
+
+    
+    switch (entry.atr.flag & Diagnostic::TAKETYPE_MASK)
+        {
+        case ArgFlag::STORE_CONST :
+            // We don't need to care about the nargs. but we do need to care abt constant type
+            try{
+                std::any_cast<None>(entry.constant_val);
+                throw std::invalid_argument("Constant type shouldn't be none");
+            } catch (std::bad_any_cast& msg){}
+            
+            break;
+        
+        case ArgFlag::STORE_NARG :
+            if(entry.atr.narg == 0){
+                throw std::invalid_argument("STORE_NARG flag shouldn't be paired with 0 nargs");
+            }
+            
+            break;
+
+        case ArgFlag::STORE_ANY :
+            entry.atr.narg = -1;
+            
+            break;
+
+        default:
+            throw std::invalid_argument("Invalid take type flag");
+            break;
+        }
+
+}
+
+void utls::prsr::ArgParser::_AddFlag(std::string& opt, ArgEntry& entry){
+    size_t comma_pos = opt.find(',');
+        
+    std::regex short_pattern("^-[a-zA-Z]$");
+    std::regex long_pattern("^--[a-zA-Z]+[a-zA-Z0-9_-]*$");
+    if(comma_pos != std::string::npos){
+        
+        std::string short_flag = utls::frmt::__strip(opt.substr(0, comma_pos), ' ');
+        std::string long_flag = utls::frmt::__strip(opt.substr(comma_pos + 1), ' ');
+        if(!short_flag.empty() && !long_flag.empty()){
+            if(std::regex_match(short_flag, short_pattern) && std::regex_match(long_flag, long_pattern)){
+                _FlagVerifyNarg(entry);
+                entry.meta.name = short_flag + " | " + long_flag;
+                ArgEntry* entry_ptr = new ArgEntry(entry); // more than one instance are using the same entry
+                unduplicated_arg_data.push_back(entry_ptr);
+                arg_lookup.insert({short_flag, entry_ptr});
+                arg_lookup.insert({long_flag, entry_ptr});
+            } else {
+                throw std::invalid_argument(opt + " Does not match long and short flag pattern");
+            }
+        } else {
+            throw std::invalid_argument("Empty option '" + opt + "' are not permitted");
+        }
+    } else {
+        
+        opt = utls::frmt::__strip(opt, ' ');
+        switch (opt.find_first_not_of('-'))
+        {
+        case 1: // short flag
+            if(!std::regex_match(opt, short_pattern)){
+                throw std::invalid_argument("Invalid short flag pattern");
+            }
+            
+            break;
+        
+        case 2 : // long flag
+            if(!std::regex_match(opt, long_pattern)){
+                throw std::invalid_argument("Invalid long flag pattern");
+            }
+            
+            break;
+        
+        default:
+            throw std::invalid_argument("Unknown flag format");
+            break;
+        }
+        entry.meta.name = opt;
+        _FlagVerifyNarg(entry);
+        ArgEntry* entry_ptr = new ArgEntry(entry);
+        unduplicated_arg_data.push_back(entry_ptr);
+        arg_lookup.insert({opt, entry_ptr});
+    }
+}
 
     void utls::prsr::ArgParser::add_argument(
         std::string opt,
@@ -353,9 +359,12 @@ bool is_posarg_subcom(const std::string& str){
         entry.default_val = def;
         // Make narg check easier for the add_positional or add_flag
         if(narg >= 0){
-            if((entry.atr.flag & ArgFlagDiagnostic::ARGTYPE_MASK) == ArgFlag::FLAG){
+            
+            if((entry.atr.flag & Diagnostic::ARGTYPE_MASK) == ArgFlag::FLAG){
+                
                 _AddFlag(opt, entry);
             } else {
+                
                 _AddPositional(opt, entry);
             }
         } else {
@@ -383,7 +392,7 @@ bool is_posarg_subcom(const std::string& str){
             throw std::invalid_argument("Invalid command regex pattern");
         }
     }
-
+// _GetEntry
     void utls::prsr::ArgParser::parse_main(std::vector<std::string> tokens){ 
         unsigned int token_ptr = 0;
         unsigned int positional_ptr = 0;
