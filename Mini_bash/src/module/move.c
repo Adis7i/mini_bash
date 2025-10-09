@@ -14,6 +14,7 @@ void _customsprint(const char* msg){ // I don't wanna use the extra formatting f
 }
 
 void fmove(const char* old_path, const char* new_path, bool _CrossDevice, bool _AllowOverwrite){    
+        
     if(_CrossDevice){
         int fd_dest;
         int fd_src;

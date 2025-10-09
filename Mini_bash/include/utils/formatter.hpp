@@ -14,6 +14,7 @@
 #include <vector>
 #include <iostream>
 #include <array>
+#include <limits>
 
 namespace utls{
     namespace frmt{
@@ -59,6 +60,10 @@ namespace utls{
             }
             return false;
         }
+
+        bool is_valid_posarg(const std::string& name);
+        bool is_valid_short_flag(const std::string& name);
+        bool is_valid_long_flag(const std::string& name);
 
         constexpr std::array<unsigned char, 256> make_lookup() {
             std::array<unsigned char, 256> arr{}; // Initializes all elements to 0
@@ -116,20 +121,7 @@ namespace utls{
                 return NumCastCode::SUCCESS;
             }
     // fc_fb
-            Decimal fc_fb(const char* start, const char* end, char base){
-                long long buf = 0;
-                // Parse number before '.'
-                NumCastCode code = fc_ib<long long>(start, end, base, buf);
-            
-                // Parse number after '.'
-                if((*start == '.') && (code != NumCastCode::SUCCESS)) { // SUCCESS Means the fc_ib iterate until start == end
-                    const char* ptr = start;
-                    ++start;
-                    code = notApi::fc_ib<long long>(start, end, base, buf);
-                    return Decimal(buf, static_cast<int>(ptr - start + 1), base, code);
-                }
-                return Decimal(buf, 0, base, code);
-            }
+            Decimal fc_fb(const char* start, const char* end, char base);
         }
         
         template <typename __out_type>

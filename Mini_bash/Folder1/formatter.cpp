@@ -1,7 +1,6 @@
-#include "../../include/utils/formatter.hpp"
+#include "formatter.hpp"
 #include <cmath>
 #include <iostream>
-// utls::frmt::notApi
 
 std::string utls::frmt::normalize(std::string inp_path){
     if(inp_path.empty()){ return ""; }
@@ -71,6 +70,8 @@ bool utls::frmt::startswith(std::string &str, const char* sstr) {
     return str.find(sstr) == 0;
 }
 
+// prototypes function
+
 bool utls::frmt::str_bool(std::string val){
     val = utls::frmt::__strip(val, ' ');
     for(int i = 0; i < val.length(); i++){
@@ -137,59 +138,3 @@ int utls::frmt::str_int(std::string val){
     return res;
 }
 
-bool utls::frmt::is_valid_posarg(const std::string& name){
-        if(name.empty()) return false;
-        
-        for(int i = 0; i < name.size(); i++){
-            char c = name[i];
-            if(!((('A' <= c) && (c <= 'Z')) ||
-                (('a' <= c) && (c <= 'z')))) return false;
-        }
-        return true;
-    }
-
-bool utls::frmt::is_valid_short_flag(const std::string& name){
-    if(name.length() != 2) return false;
-    if(name[0] != '-') return false;
-    char c = name[1];
-    if((('A' <= c) && (c <= 'Z')) ||
-      (('a' <= c) && (c <= 'z'))) return true;
-
-    return false;
-        
-}
-
-bool utls::frmt::is_valid_long_flag(const std::string& name) {
-    if (name.size() < 2) return false;
-    if (name[0] != '-') return false;
-    // first char after '-' must be a letter
-    char first = name[1];
-    if (!((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z')))
-        return false;
-    // remaining characters can be [a-zA-Z0-9-_]
-    for (size_t i = 2; i < name.size(); ++i) {
-        char c = name[i];
-        if (!((c >= 'a' && c <= 'z') ||
-              (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') ||
-              c == '-' || c == '_')) {
-            return false;
-        }
-    }
-        return true;
-}
-
-utls::frmt::Decimal utls::frmt::notApi::fc_fb(const char* start, const char* end, char base){
-                long long buf = 0;
-                // Parse number before '.'
-                NumCastCode code = fc_ib<long long>(start, end, base, buf);
-            
-                // Parse number after '.'
-                if((*start == '.') && (code != NumCastCode::SUCCESS)) { // SUCCESS Means the fc_ib iterate until start == end
-                    const char* ptr = start;
-                    ++start;
-                    code = notApi::fc_ib<long long>(start, end, base, buf);
-                    return Decimal(buf, static_cast<int>(ptr - start + 1), base, code);
-                }
-                return Decimal(buf, 0, base, code);
-            }
