@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include "../../include/utils/parser.hpp"
+#include "../../include/utils/formatter.hpp"
 
     // Return how many argument were parsed
 int Parser::multi_parse(

@@ -37,49 +37,6 @@ enum ParseFlowStat {
 };
 enum class ArgType { Positional, Flag };
 
-namespace utls {
-    namespace frmt {
-        constexpr std::array<bool, 256> _make_table(){
-            std::array<bool, 256> data {};
-            
-            for(int i = 0; i < 256; i++){ data[i] = false; }
-
-            for(unsigned char c = '0'; c <= '9'; c++){
-                data[c] = true;
-            }
-
-            for(unsigned char c = 'A'; c <= 'Z'; c++){
-                data[c] = true;
-            }
-
-            for(unsigned char c = 'a'; c <= 'z'; c++){
-                data[c] = true;
-            }
-
-            data['_'] = true;
-            return data;
-        }
-
-        constexpr std::array<bool, 256> valid_char_table = _make_table();
-
-        // _end must point at null-terminator
-        bool valid_long_name(const char* _start){
-            if(_start == nullptr) return false;
-            unsigned char c;
-            while((c = *_start) != '\0') {
-                if(!valid_char_table[c]) return false;
-                ++_start;
-            }
-            return true;
-        }
-
-        bool valid_short_name(unsigned char name) {
-            return (name == '_') ? false : (valid_char_table[name]);
-        }
-
-    };
-};
-
 class Parser;
 
 struct Option {

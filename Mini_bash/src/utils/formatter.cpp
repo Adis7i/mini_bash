@@ -41,9 +41,9 @@ std::string utls::frmt::normalize(std::string inp_path){
     return token;
 }
 
-std::vector<std::string> utls::frmt::__split(std::string &inp_str, char sep){
+std::vector<std::string> utls::frmt::split(std::string &inp_str, char sep){
     std::vector<std::string> res;
-    std::string stripped_input = utls::frmt::__strip(inp_str, sep);
+    std::string stripped_input = utls::frmt::strip(inp_str, sep);
     unsigned int left = 0;
     int right = -1;
     while((right = stripped_input.find(sep, right + 1)) != std::string::npos){
@@ -57,7 +57,7 @@ std::vector<std::string> utls::frmt::__split(std::string &inp_str, char sep){
     
 }
 
-std::string utls::frmt::__strip(const std::string &inp_str, char sep){
+std::string utls::frmt::strip(const std::string &inp_str, char sep){
     int left = inp_str.find_first_not_of(sep);
     int right = inp_str.find_last_not_of(sep);
     if((left == std::string::npos) || (right == std::string::npos)){
@@ -66,52 +66,11 @@ std::string utls::frmt::__strip(const std::string &inp_str, char sep){
     return inp_str.substr(left, right - left + 1);
 }
 
-
 bool utls::frmt::startswith(std::string &str, const char* sstr) {
     return str.find(sstr) == 0;
 }
 
-bool utls::frmt::str_bool(std::string val){
-    val = utls::frmt::__strip(val, ' ');
-    for(int i = 0; i < val.length(); i++){
-        val[i] = std::tolower(val[i]);
-    }
-    if(val == "true"){
-        return true;
-    } else if (val == "false"){
-        return false;
-    } else {
-        throw std::invalid_argument("");
-    }
-}
-
-double utls::frmt::str_dob(std::string val){
-    val = utls::frmt::__strip(val, ' ');
-    double res = 0;
-    short n_now;
-    float div = 1;
-    bool comma = false;
-
-    for(int i = val.length() - 1; i >= 0; i--){
-        n_now = val[i] - 48;
-        if((0 <= n_now) && (n_now <= 9)){
-            res += n_now * div;
-            div *= 10;
-        } else if ((n_now == -2) && !comma){
-            res /= div;
-            div = 1;
-            comma = true;
-        } else {
-            std::cerr << "Invalid character found : " << val[i] << std::endl;
-            throw "Invalid format";
-        }
-    
-    }
-    
-    return res;
-}
-
-void __show(std::vector<std::string>& token){
+void show(std::vector<std::string>& token){
     std::cout << "[";
     for(auto c : token){
         std::cout << c << ", ";
@@ -119,77 +78,16 @@ void __show(std::vector<std::string>& token){
     std::cout << "]" << std::endl;
 }
 
-int utls::frmt::str_int(std::string val){
-    int res = 0;
-    char c_now;
-    for(int i = 0; i < val.length(); i++){
-        
-        c_now = val[i] - 48;
-        if((0 <= c_now) && (c_now <= 9)){
-            res = (res * 10) + c_now;
-        } else {
-            c_now += 48;
-            std::cerr << "Invalid character found : " << c_now << std::endl;
-            throw "Invalid format";
-        }
-       
+bool utls::frmt::valid_long_name(const char* _start){
+    if(_start == nullptr) return false;
+    unsigned char c;
+    while((c = *_start) != '\0') {
+        if(!valid_char_table[c]) return false;
+        ++_start;
     }
-    return res;
+    return true;
 }
 
-bool utls::frmt::is_valid_posarg(const std::string& name){
-        if(name.empty()) return false;
-        
-        for(int i = 0; i < name.size(); i++){
-            char c = name[i];
-            if(!((('A' <= c) && (c <= 'Z')) ||
-                (('a' <= c) && (c <= 'z')))) return false;
-        }
-        return true;
-    }
-
-bool utls::frmt::is_valid_short_flag(const std::string& name){
-    if(name.length() != 2) return false;
-    if(name[0] != '-') return false;
-    char c = name[1];
-    if((('A' <= c) && (c <= 'Z')) ||
-      (('a' <= c) && (c <= 'z'))) return true;
-
-    return false;
-        
+bool utls::frmt::valid_short_name(unsigned char name) {
+    return (name == '_') ? false : (valid_char_table[name]);
 }
-
-bool utls::frmt::is_valid_long_flag(const std::string& name) {
-    if (name.size() < 2) return false;
-    if (name[0] != '-') return false;
-    // first char after '-' must be a letter
-    char first = name[1];
-    if (!((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z')))
-        return false;
-    // remaining characters can be [a-zA-Z0-9-_]
-    for (size_t i = 2; i < name.size(); ++i) {
-        char c = name[i];
-        if (!((c >= 'a' && c <= 'z') ||
-              (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') ||
-              c == '-' || c == '_')) {
-            return false;
-        }
-    }
-        return true;
-}
-
-utls::frmt::Decimal utls::frmt::notApi::fc_fb(const char* start, const char* end, char base){
-                long long buf = 0;
-                // Parse number before '.'
-                NumCastCode code = fc_ib<long long>(start, end, base, buf);
-            
-                // Parse number after '.'
-                if((*start == '.') && (code != NumCastCode::SUCCESS)) { // SUCCESS Means the fc_ib iterate until start == end
-                    const char* ptr = start;
-                    ++start;
-                    code = notApi::fc_ib<long long>(start, end, base, buf);
-                    return Decimal(buf, static_cast<int>(ptr - start + 1), base, code);
-                }
-                return Decimal(buf, 0, base, code);
-            }
