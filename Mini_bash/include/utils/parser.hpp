@@ -24,11 +24,17 @@ enum class ParsingStatus {
     Fine, 
     UnsatisfiedNarg, 
     AnyBeforeNumbered,
-    LeftToCall
+    LeftToCall,
+    UnexpectedFailure
 };
 enum class ParserErrorCode { Good, InvalArg, NameExist, StorageFull };
 enum NArgType { Any = -1, CallOnly = 0 };
-enum ParseFlowStat { TrueHalt, Halt, Continue };
+enum ParseFlowStat {
+    TrueHalt,
+    Halt,
+    Continue,
+    SubcomHalt // Special only for parse_option
+};
 enum class ArgType { Positional, Flag };
 
 namespace utls {
@@ -74,7 +80,13 @@ namespace utls {
     };
 };
 
+class Parser;
+
 struct Option {
+    private :
+    bool isCalled = false;
+    friend class Parser;
+    public :
     std::function<void(Option&)> callback = [](Option&){};
     std::string desc;
     std::vector<std::string> values;
@@ -84,7 +96,6 @@ struct Option {
     const std::string long_name;
     const int narg;
     const ArgType opt_type;
-    bool isCalled = false;
 
     Option(
         int _narg,
@@ -102,12 +113,15 @@ struct Option {
     {}
 };
 
+struct Subcom;
+
 class Parser {  
     private :
     std::unordered_map<std::string, Option*> long_lookup_;
     std::unordered_map<char, Option*> short_lookup_;
     std::unordered_map<std::string, Option*> posarg_lookup_;
-    std::vector<Option*> posarg_;    
+    std::unordered_map<std::string, Subcom> subcom_lookup_;
+    std::vector<Option*> posarg_;
     std::vector<Option> options_;
     std::vector<std::string> dump;
 
@@ -120,17 +134,19 @@ class Parser {
     int multi_parse(
         bool (*token_check)(std::string_view& v),
         std::vector<std::string>::iterator& iter,
-        std::vector<std::string>& sequence_obj,
+        const std::vector<std::string>::iterator& end,
         Option*& opt);
 
     ParseFlowStat handle_flag(
         std::vector<std::string>::iterator& iter,
-        std::vector<std::string>& sequence_obj,
+        const std::vector<std::string>::iterator& end,
         std::string_view& viewer, Option*& opt
     );
     // Return a status wether the whole parsing should halt or not
     // true to continue, false to halt
-    ParseFlowStat parse_option(std::vector<std::string>& sequence_obj);
+    ParseFlowStat parse_option(
+        std::vector<std::string>::iterator& iter,
+        const std::vector<std::string>::iterator& end);
 
     ParseFlowStat parse_posarg();
 
@@ -146,7 +162,9 @@ class Parser {
 
     // Cool name ain't it ?, Using bool as return type
     // This is to ease up a way for user to know if anythings wrong
-    bool orchestra(std::vector<std::string>& main_sequence);
+    bool orchestra(
+        std::vector<std::string>::iterator& beg,
+        const std::vector<std::string>::iterator& end);
 
     // Parser stores a fixed number of Option objects.
     // After allocation in the constructor, no further growth is allowed.
@@ -215,9 +233,16 @@ class Parser {
 };
 
 struct Subcom {
+    private :
+    bool isCalled;    
+    friend class Parser;
+
+    public :
     std::string name;
     std::function<void(Subcom&)> callback = [](Subcom&){};
-    const Parser a;
-    Subcom(size_t alloc_opt) : a(alloc_opt) {}
+    Parser parser_obj;
+
+    bool is_called() const noexcept { return isCalled; }
+    Subcom(size_t alloc_opt) : parser_obj(alloc_opt) {}
 };
 #endif

@@ -1,20 +1,18 @@
-#include "../../include/utils/parser.hpp"
-
 #include <iostream>
 #include <iomanip>
-#include "parser.hpp"
+#include "../../include/utils/parser.hpp"
 
     // Return how many argument were parsed
 int Parser::multi_parse(
     bool (*token_check)(std::string_view& v),
     std::vector<std::string>::iterator& iter,
-    std::vector<std::string>& sequence_obj,
+    const std::vector<std::string>::iterator& end,
     Option*& opt)
 {
     std::string_view viewer;
     int left_to_parse = opt->narg;
     int parsed_count = 0;
-    while ((iter != sequence_obj.end()) && (left_to_parse != 0)) {
+    while ((iter != end) && (left_to_parse != 0)) {
         viewer = *iter;
         if(token_check(viewer)) return parsed_count;
         opt->values.push_back(viewer.data());
@@ -27,7 +25,7 @@ int Parser::multi_parse(
 
     ParseFlowStat Parser::handle_flag(
         std::vector<std::string>::iterator& iter,
-        std::vector<std::string>& sequence_obj,
+        const std::vector<std::string>::iterator& end,
         std::string_view& viewer, Option*& opt
     ){
         switch (viewer.find_first_not_of('-')) {
@@ -63,7 +61,7 @@ int Parser::multi_parse(
         if(opt->narg != NArgType::CallOnly) {
             narg_parsed = multi_parse([](std::string_view& viewer){
                 return (viewer[0] == '-');
-            }, iter, sequence_obj, opt);
+            }, iter, end, opt);
         }
         
         if(narg_parsed != opt->narg) {
@@ -76,17 +74,23 @@ int Parser::multi_parse(
 
     // Return a status wether the whole parsing should halt or not
     // true to continue, false to halt
-    ParseFlowStat Parser::parse_option(std::vector<std::string>& sequence_obj)
+    ParseFlowStat Parser::parse_option(
+        std::vector<std::string>::iterator& iter,
+        const std::vector<std::string>::iterator& end)
     {
         std::string_view viewer;
         Option* opt;
-        auto iter = sequence_obj.begin();
         ParseFlowStat flow;
-        while(iter != sequence_obj.end()) {
+        while(iter != end) {
             viewer = *iter;
             ++iter;
-            if((viewer[0] != '-') || (viewer == "-")) dump.push_back(viewer.data());
-            else if((flow = handle_flag(iter, sequence_obj, viewer, opt)) != Continue){
+            if((viewer[0] != '-')) {
+                if(subcom_lookup_.count(viewer.data()) != 0){
+                    return SubcomHalt;
+                }
+                dump.push_back(viewer.data());
+
+            } else if((flow = handle_flag(iter, end, viewer, opt)) != Continue){
                 return flow;
             }
         }
@@ -102,7 +106,7 @@ int Parser::multi_parse(
 
             int narg_parsed = multi_parse([](std::string_view& viewer){
                 return false;
-            }, dump_iter, dump, opt);
+            }, dump_iter, dump.end(), opt);
 
             if(narg_parsed < opt->narg) {
                 parsing_status_ = ParsingStatus::UnsatisfiedNarg;
@@ -176,11 +180,29 @@ int Parser::multi_parse(
 
     // Cool name ain't it ?, Using bool as return type
     // This is to ease up a way for user to know if anythings wrong
-    bool Parser::orchestra(std::vector<std::string>& main_sequence){
+    bool Parser::orchestra(
+        std::vector<std::string>::iterator& beg,
+        const std::vector<std::string>::iterator& end){
+        
         parsing_status_ = ParsingStatus::Fine;
-        if(parse_option(main_sequence) == TrueHalt) return false;
+        bool parse_stat;
+        ParseFlowStat stat;
+        
+        if((stat = parse_option(beg, end)) == TrueHalt) return false;
         if(parse_posarg() == TrueHalt) return false;
-        return finalize();
+        
+        parse_stat = finalize();
+
+        if(!parse_stat) return parse_stat;
+        else if (stat == SubcomHalt){
+            auto sbc_iter = subcom_lookup_.find(*beg);
+            if(sbc_iter != subcom_lookup_.end()) {
+                return sbc_iter->second.parser_obj.orchestra(beg, end);
+            } else {
+                parsing_status_ = ParsingStatus::UnexpectedFailure;
+                return false;
+            }
+        }
     }
 
     Option* Parser::get_short_flag(char _name) {
