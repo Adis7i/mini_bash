@@ -9,11 +9,17 @@
 
 #ifndef ADIS_CAT_HPP
 #define ADIS_CAT_HPP
-#include <string>
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 /**
  * @brief Shows content from a file
  * 
  */
-void cat(std::string path);
+void cat(const char* path);
+void customsprint_(const char* msg);
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -3,6 +3,8 @@
 #include "../../include/utils/parser.hpp"
 #include "../../include/utils/formatter.hpp"
 
+using namespace utls::prsr;
+
     // Return how many argument were parsed
 int Parser::multi_parse(
     bool (*token_check)(std::string_view& v),
@@ -10,13 +12,15 @@ int Parser::multi_parse(
     const std::vector<std::string>::iterator& end,
     Option*& opt)
 {
+    
     std::string_view viewer;
     int left_to_parse = opt->narg;
     int parsed_count = 0;
     while ((iter != end) && (left_to_parse != 0)) {
-        viewer = *iter;
+        viewer = *iter;        
         if(token_check(viewer)) return parsed_count;
         opt->values.push_back(viewer.data());
+        std::cout << "Push back : " << viewer << std::endl;
         ++iter;
         --left_to_parse;
         ++parsed_count;
@@ -29,9 +33,14 @@ int Parser::multi_parse(
         const std::vector<std::string>::iterator& end,
         std::string_view& viewer, Option*& opt
     ){
+        if((viewer == "-h") || (viewer == "--help")) {
+            help();
+            return ParseFlowStat::TrueHalt;
+        }
         switch (viewer.find_first_not_of('-')) {
             case 1 : 
                 if(viewer.size() != 2) { // do not allow multiple flag like -abc
+                    std::cout << "viewer : " << viewer << std::endl;
                     parsing_status_ = ParsingStatus::UnexpectedToken;
                     return ParseFlowStat::TrueHalt;
                 } // Invalid short flag
@@ -52,7 +61,6 @@ int Parser::multi_parse(
 
             default:
                 if(viewer == "--") {
-                    std::cout << "Stop Parse option\n";
                     return ParseFlowStat::Halt;
                 }
                 break;
@@ -79,17 +87,23 @@ int Parser::multi_parse(
         std::vector<std::string>::iterator& iter,
         const std::vector<std::string>::iterator& end)
     {
+        
         std::string_view viewer;
         Option* opt;
         ParseFlowStat flow;
         while(iter != end) {
             viewer = *iter;
+            
             ++iter;
             if((viewer[0] != '-')) {
+                
                 if(subcom_lookup_.count(viewer.data()) != 0){
+                    --iter;
                     return SubcomHalt;
                 }
                 dump.push_back(viewer.data());
+                std::cout << "Dumping : " << viewer << std::endl;
+                
 
             } else if((flow = handle_flag(iter, end, viewer, opt)) != Continue){
                 return flow;
@@ -102,7 +116,10 @@ int Parser::multi_parse(
         auto dump_iter = dump.begin();
         auto posarg_iter = posarg_.begin();
         Option* opt;
+        
+        
         while ((dump_iter != dump.end()) && (posarg_iter != posarg_.end())) {
+            
             opt = *posarg_iter;
 
             int narg_parsed = multi_parse([](std::string_view& viewer){
@@ -114,6 +131,7 @@ int Parser::multi_parse(
                 return ParseFlowStat::TrueHalt;
             }
             ++posarg_iter;
+            opt->isCalled = true;
         }
 
         if(dump_iter != dump.end()){
@@ -138,7 +156,7 @@ int Parser::multi_parse(
                 return false;
             }
         }
-        for(auto& opt : options_) {
+        for(auto& opt : options_) {            
             if(opt.isCalled) opt.callback(opt);
         }
         return true;
@@ -160,7 +178,7 @@ int Parser::multi_parse(
             break;
         }
     }
-
+    
     void Parser::help() {
         std::cout << prolouge << "\nFlags : \n";
         for(auto& opt : options_){
@@ -173,12 +191,12 @@ int Parser::multi_parse(
         std::cout << "\nPositionals : \n";
         for(auto& opt : posarg_) {  
             std::cout << (opt->is_required ? "[!] " : "[*] ");
+            std::cout << opt->long_name << " ";
             shortcut_print_narg(*opt);
-            std::cout << opt->long_name << " " << opt->desc;
         }
         std::cout << "\n" << epilouge << std::endl;
-    }
-
+    }    
+    
     // Cool name ain't it ?, Using bool as return type
     // This is to ease up a way for user to know if anythings wrong
     bool Parser::orchestra(
@@ -197,13 +215,21 @@ int Parser::multi_parse(
         if(!parse_stat) return parse_stat;
         else if (stat == SubcomHalt){
             auto sbc_iter = subcom_lookup_.find(*beg);
+            
             if(sbc_iter != subcom_lookup_.end()) {
-                return sbc_iter->second.parser_obj.orchestra(beg, end);
+                ++beg;
+                auto data_ptr = sbc_iter->second.get();
+                data_ptr->isCalled = true;
+                bool subparser_flow_stat = data_ptr->parser_obj.orchestra(beg, end);                
+                if(subparser_flow_stat) data_ptr->callback(*data_ptr);
+                print_parsing_message(data_ptr->parser_obj.parsing_status());
+                return subparser_flow_stat;
             } else {
                 parsing_status_ = ParsingStatus::UnexpectedFailure;
                 return false;
             }
         }
+        return true;
     }
 
     Option* Parser::get_short_flag(char _name) {
@@ -217,20 +243,10 @@ int Parser::multi_parse(
     }
 
     Option* Parser::get_posarg(const char* _name) {
-        return get_long_flag(_name);
+        auto it = posarg_lookup_.find(_name);
+        return ((it == posarg_lookup_.end()) ? nullptr : it->second);
     }
     
-    /**
-     * @brief Adds an short flag. pointer management responsibility and consequences are held by the user
-     * 
-     * @return
-     * Upon successful operation, this function shall return a pointer pointing to a data.
-     * Upon a failure, this function shall return a ```nullptr```
-     * 
-     * @note
-     * Enter format such as 
-     * short_name => 'a', 'p', 'h', etc.
-     */
     Option* Parser::add_option(int _narg, char _short_name){
         if(options_.capacity() == options_.size()) {
             other_status_ = ParserErrorCode::StorageFull;
@@ -251,17 +267,6 @@ int Parser::multi_parse(
         return ptr;
     }
 
-    /**
-     * @brief Adds an short flag. pointer management responsibility and consequences are held by the user
-     * 
-     * @return
-     * Upon successful operation, this function shall return a pointer pointing to a data.
-     * Upon a failure, this function shall return a ```nullptr```
-     * 
-     * @note
-     * Enter format such as 
-     * long_name => 'port', 'output', 'file', etc.
-     */
     Option* Parser::add_option(int _narg, const char* _long_name){
         other_status_ = ParserErrorCode::Good;
         if(options_.capacity() == options_.size()){
@@ -284,18 +289,6 @@ int Parser::multi_parse(
         return ptr;
     }
 
-    /**
-     * @brief Adds an short flag. pointer management responsibility and consequences are held by the user
-     * 
-     * @return
-     * Upon successful operation, this function shall return a pointer pointing to a data.
-     * Upon a failure, this function shall return a ```nullptr```
-     * 
-     * @note
-     * Enter format such as 
-     * long_name => 'port', 'output', 'file', etc.
-     * short_name => 'a', 'b', 'c'
-     */
     Option* Parser::add_option(int _narg, char _short_name, const char* _long_name){
         other_status_ = ParserErrorCode::Good;
         if(options_.capacity() == options_.size()){
@@ -342,6 +335,7 @@ int Parser::multi_parse(
 
         options_.push_back(Option(_narg, 0, _name, ArgType::Positional));
         Option* ptr = &options_.back();
+        ptr->is_required = true;
         if(!posarg_lookup_.emplace(std::string(_name), ptr).second){
             options_.pop_back();
             return nullptr;
@@ -352,6 +346,93 @@ int Parser::multi_parse(
         return ptr;
     }
     
+    Subcom* Parser::add_subcom(const char* _name, size_t _alloc_arg){
+        std::unique_ptr<Subcom> ptr = std::make_unique<Subcom>(_alloc_arg);
+        Subcom* data_ptr = ptr.get();        
+        if(!subcom_lookup_.emplace(std::string(_name), std::move(ptr)).second){
+            
+            other_status_ = ParserErrorCode::NameExist;
+            return nullptr;
+        }
+        return data_ptr;
+    }
+    
     bool Parser::storage_full() const noexcept { return options_.capacity() == options_.size(); }
     bool Parser::last_is_any() const noexcept { return last_is_any_; }
     ParsingStatus Parser::parsing_status() const noexcept { return parsing_status_; }
+    ParserErrorCode Parser::parser_status() const noexcept { return other_status_; }
+    void Parser::reset() noexcept { // void reset() noexcept;
+        for(auto& opt : options_){
+            opt.values.clear();
+        }
+
+        for(auto& sbc : subcom_lookup_){
+            sbc.second.get()->parser_obj.reset();
+        }
+        dump.clear();
+        other_status_ = ParserErrorCode::Good;
+        parsing_status_ = ParsingStatus::Fine;
+    }
+
+void utls::prsr::print_parsing_message(ParsingStatus status) {
+    std::cout << "Error: ";
+    switch (status) {
+        case ParsingStatus::UnexpectedToken:
+            std::cout << "Unexpected token provided" << std::endl;
+            break;
+
+        case ParsingStatus::UnknownOption:
+            std::cout << "Unknown option" << std::endl;
+            break;
+
+        case ParsingStatus::UnsatisfiedNarg:
+            std::cout << "Missing argument for an option/posarg" << std::endl;
+            break;
+
+        case ParsingStatus::LeftToCall:
+            std::cout << "Required option/posarg was not called" << std::endl;
+            break;
+
+        case ParsingStatus::Fine:
+            std::cout << "Parsing completed successfully" << std::endl;
+            break;
+
+        case ParsingStatus::UnexpectedFailure :
+            std::cout << "Unexpected failure" << std::endl;
+            break;
+        
+        default:
+            std::cout << "What am I supposed to tell if you give me sum random things ?" << std::endl;
+            break;
+    }
+}
+
+void utls::prsr::print_parser_message(ParserErrorCode status){
+    std::cout << "Parser : ";
+    switch (status)
+    {
+    case ParserErrorCode::NameExist :
+        std::cout << "Name exist ! " << std::endl;
+        break;
+    
+    case ParserErrorCode::Good :
+        std::cout << "Good !" << std::endl;
+        break;
+    
+    case ParserErrorCode::InvalArg :
+        std::cout << "Invalid argument ! " << std::endl;
+        break;
+    
+    case ParserErrorCode::StorageFull :
+        std::cout << "Storage full !" << std::endl;
+        break;
+    
+    case ParserErrorCode::AnyBeforeNumbered :
+        std::cout << "Posarg with Narg type of 'Any' are forbid to be not at the end of the posarg order" << std::endl;
+        break;
+
+    default:
+        std::cout << "Unknown Error Code" << std::endl;
+        break;
+    }
+}

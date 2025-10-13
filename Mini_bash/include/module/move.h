@@ -10,6 +10,12 @@
 #ifndef ADIS_MOVE_H
 #define ADIS_MOVE_H
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 void _customsprint(const char* msg);
 void fmove(const char* old_path, const char* new_path, bool _CrossDevice, bool _AllowOverwrite);
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -1,4 +1,5 @@
-#include "abc/Mini_bash/include/macros.hpp"
+#include "../../include/macros.hpp"
+#include "../../include/module/move.h"
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -21,7 +22,7 @@ enum lsFlag{
 };
 
 void _print_permission(mode_t _mode, char b[10]){
-    // I'm just substituting the original S_IS* function definition into switch-case
+    // I'm just substituting the original S_IS.* function definition into switch-case
     switch (_mode & 0170000) {
         case 0040000: // => file is a dir
             b[0] = 'd';
